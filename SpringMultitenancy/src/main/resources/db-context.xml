@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:context="http://www.springframework.org/schema/context"
+	xmlns:mvc="http://www.springframework.org/schema/mvc" xmlns:aop="http://www.springframework.org/schema/aop"
+	xmlns:tx="http://www.springframework.org/schema/tx" xmlns:sec="http://www.springframework.org/schema/security"
+	xsi:schemaLocation="
+		http://www.springframework.org/schema/beans	http://www.springframework.org/schema/beans/spring-beans-3.0.xsd
+		http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context-3.0.xsd
+		http://www.springframework.org/schema/mvc http://www.springframework.org/schema/mvc/spring-mvc-3.0.xsd
+	    http://www.springframework.org/schema/tx http://www.springframework.org/schema/tx/spring-tx-3.0.xsd
+	    http://www.springframework.org/schema/aop http://www.springframework.org/schema/aop/spring-aop-3.0.xsd
+	    http://www.springframework.org/schema/security http://www.springframework.org/schema/security/spring-security-3.0.xsd">
+
+	<bean id="parentDataSource"
+		class="org.springframework.jdbc.datasource.DriverManagerDataSource"
+		abstract="true">
+		<property name="driverClassName" value="${database.driverClassName}" />
+		<property name="username" value="${database.username}" />
+		<property name="password" value="${database.password}" />
+	</bean>
+
+	<bean id="masterDatasource" parent="parentDataSource">
+		<property name="url" value="${masterdatabase.url}" />
+	</bean>
+
+	<bean id="multitenantConfigurationManager" class="com.vinodborole.spring.multitenancy.MultiTenantConfigurationManager">
+		  <constructor-arg ref="OrganizationDao" />
+	</bean>
+
+	<bean id="dataSource" class="com.vinodborole.spring.multitenancy.TenantRoutingDataSource">
+		<constructor-arg ref="multitenantConfigurationManager"></constructor-arg>
+		<property name="defaultTargetDataSource" ref="masterDatasource" />
+	</bean>
+
+
+	<!-- TenantDB Configuration -->
+	<!-- ref: http://docs.spring.io/spring/docs/current/spring-framework-reference/html/transaction.html#transaction-declarative-annotations -->
+	<bean id="sessionFactory"
+		class="org.springframework.orm.hibernate4.LocalSessionFactoryBean">
+		<property name="dataSource" ref="dataSource" />
+		<property name="hibernateProperties">
+			<props>
+				<prop key="hibernate.dialect">${hibernate.dialect}</prop>
+				<prop key="hibernate.show_sql">true</prop>
+				<prop key="hibernate.format_sql">true</prop>
+				<prop key="hibernate.hbm2ddl.auto">none</prop>
+				<prop key="hibernate.default_schema">${schema.client}</prop>
+			</props>
+		</property>
+		<property name="packagesToScan" value="com.vinodborole.spring.models" />
+	</bean>
+	<tx:annotation-driven />
+	<bean id="transactionManager" class="org.springframework.orm.hibernate4.HibernateTransactionManager">
+		<property name="sessionFactory" ref="sessionFactory" />
+		<qualifier value="tenant" />
+	</bean>
+
+	<!-- MasterDB Configuration -->
+	<bean id="masterSessionFactory" class="org.springframework.orm.hibernate4.LocalSessionFactoryBean">
+		<property name="dataSource" ref="masterDatasource" />
+		<property name="hibernateProperties">
+			<props>
+				<prop key="hibernate.dialect">${hibernate.dialect}</prop>
+				<prop key="hibernate.show_sql">true</prop>
+				<prop key="hibernate.format_sql">true</prop>
+				<prop key="hibernate.hbm2ddl.auto">none</prop>
+				<prop key="hibernate.default_schema">${schema.master}</prop>
+			</props>
+		</property>
+		<property name="packagesToScan" value="com.vinodborole.spring.models.master" />
+	</bean>
+	<bean id="masterTransactionManager" class="org.springframework.orm.hibernate4.HibernateTransactionManager">
+		<property name="sessionFactory" ref="masterSessionFactory" />
+		<qualifier value="master" />
+	</bean>
+</beans>
